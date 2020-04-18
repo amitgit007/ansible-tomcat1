@@ -1,0 +1,68 @@
+-
+  name: Tomcat installation
+  hosts: target1
+  become: yes
+  vars:
+    jdk_version: openjdk-8-jdk
+    tomcat_version: "8.5.54"
+    tomcat_url: http://apachemirror.wuchna.com/tomcat/tomcat-{{ tomcat_version[0] }}/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz
+    tomcat_port: 8090
+    ansible_become_password: osboxes.org
+  handlers:
+    - name: Restart tomcat instance
+      shell:
+        cmd:  nohup /opt/tomcat/apache-tomcat-8.5.54/bin/shutdown.sh; sleep 60;nohup /opt/tomcat/apache-tomcat-8.5.54/bin/startup.sh
+
+  tasks:
+     - name: update apt-get
+       apt:
+         state: latest
+         update_cache: yes
+     - name: Install jdk8
+       apt:
+         name: "{{ jdk_version }}"
+         state: present
+     - name: Group creation
+       group:
+         name: tomcat
+         state: present
+
+     - name: Tomcat user creation
+       user:
+         name: tomcat
+         group: tomcat
+         shell: /bin/false
+         state: present
+         expires: -1
+     - name: Tomcat installation directory
+       file:
+        path: /opt/tomcat
+        state: directory
+        recurse: yes
+        owner: tomcat
+        group: tomcat
+        mode: 0775
+
+     - name: Download tomcat installer
+       get_url:
+         url: "{{ tomcat_url }}"
+         dest: /tmp
+
+     - name: Unarchive the tomcat installer
+       unarchive:
+         remote_src: yes
+         src:  /tmp/apache-tomcat-{{ tomcat_version }}.tar.gz
+         owner: tomcat
+         group: tomcat
+         mode: 0775
+         dest: /opt/tomcat
+
+     - name: Templating server.xml configuration
+       template:
+         src: /home/osboxes/test-project/templates/server.xml.j2
+         dest: /opt/tomcat/apache-tomcat-{{ tomcat_version }}/conf/server.xml
+         owner: tomcat
+         group: tomcat
+         mode: 0775
+       notify:
+          - Restart tomcat instance
